@@ -9,10 +9,7 @@ fn main() {
     println!("cargo:rustc-link-lib=be");
     println!("cargo:rustc-link-lib=game");
     println!("cargo:rustc-link-lib=GL");
-    println!("cargo:rustc-link-lib=GLU");
-    println!("cargo:rustc-link-lib=localestub");
 
-    println!("cargo:rerun-if-changed=src/main.rs");
     println!("cargo:rerun-if-changed=src/shims.cpp");
     println!("cargo:rerun-if-changed=src/shims.h");
     println!("cargo:rerun-if-changed=src/ObjectView.cpp");

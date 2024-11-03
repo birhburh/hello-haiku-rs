@@ -13,7 +13,6 @@
 #define OBJECT_VIEW_H
 
 #define GL_GLEXT_PROTOTYPES 1
-#include <GL/glu.h>
 #include <GLView.h>
 #include <GL/glext.h>
 
