@@ -1,4 +1,4 @@
-Simple example of using rust, cxx and OpenGL in Haiku OS
+Simple example of using rust, cc and OpenGL in Haiku OS
 
 What you need:
 ```sh

@@ -12,11 +12,6 @@
 
 #include "ObjectView.h"
 
-std::shared_ptr<BRect> new_brect(float left, float top, float right, float bottom)
-{
-  return std::make_shared<BRect>(left, top, right, bottom);
-}
-
 class TeapotWindow : public BDirectWindow {
         public:
         	TeapotWindow(BRect r, const char* name, window_type wt, 
@@ -27,16 +22,22 @@ class TeapotWindow : public BDirectWindow {
  		ObjectView*             fObjectView;
 };
 
+extern "C" {
+    BRect* new_brect(float left, float top, float right, float bottom)
+    {
+      return new BRect(left, top, right, bottom);
+    }
 
-std::shared_ptr<TeapotApp> new_teapot_app(rust::Str sign)
-{
-  return std::make_shared<TeapotApp>(std::string(sign).c_str());
-}
-
-int teapot_app_run(std::shared_ptr<TeapotApp> app, std::shared_ptr<BRect> rect, rust::Str name) {
-	TeapotWindow*   fTeapotWindow = new TeapotWindow(*rect, std::string(name).c_str(), B_TITLED_WINDOW, 0); 
+    TeapotApp* new_teapot_app(const char* sign) 
+    {
+      return new TeapotApp(sign);
+    }
+    
+    int teapot_app_run(TeapotApp* app, BRect* rect, const char* name) {
+	TeapotWindow* fTeapotWindow = new TeapotWindow(*rect, name, B_TITLED_WINDOW, 0);
         fTeapotWindow->Show();
         return app->Run();
+    }
 }
 
 TeapotWindow::TeapotWindow(BRect rect, const char* name, window_type wt, 

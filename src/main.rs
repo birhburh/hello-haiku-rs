@@ -1,40 +1,43 @@
-#[cxx::bridge]
-mod ffi {
-    unsafe extern "C++" {
-        include!("Rect.h");
-
-        include!("shims.h");
-
-        type BRect;
-        type TeapotApp;
-
-        fn new_teapot_app(arg: &str) -> SharedPtr<TeapotApp>;
-        fn teapot_app_run(app: SharedPtr<TeapotApp>, rect: SharedPtr<BRect>, name: &str) -> i32;
-        fn new_brect(left: f32, top: f32, right: f32, bottom: f32) -> SharedPtr<BRect>;
-    }
+#[repr(C)]
+pub struct TeapotApp {
+    _private: [u8; 0],
 }
 
-struct TeapotApp {
-    app: cxx::SharedPtr<ffi::TeapotApp>,
+#[repr(C)]
+pub struct BRect {
+    _private: [u8; 0],
 }
 
-impl TeapotApp {
+#[link(name = "shims_lib")]
+extern "C" {
+    fn new_teapot_app(arg: *const libc::c_char) -> *mut TeapotApp;
+    fn teapot_app_run(app: *mut TeapotApp, rect: *mut BRect, name: *const libc::c_char) -> i32;
+    fn new_brect(left: f32, top: f32, right: f32, bottom: f32) -> *mut BRect;
+}
+
+struct HelloApp {
+    app: *mut TeapotApp,
+}
+
+impl HelloApp {
     fn new() -> Self {
         Self {
-            app: ffi::new_teapot_app("application/x-vnd.Haiku-GLTeapot"),
+            app: unsafe { new_teapot_app("application/x-vnd.Haiku-GLTeapot\0".as_ptr() as *const libc::c_char) },
         }
     }
 
     fn run(&self) {
-        ffi::teapot_app_run(
-            self.app.clone(),
-            ffi::new_brect(5., 25., 300., 315.),
-            "GLTeapot",
-        );
+	unsafe {
+            teapot_app_run(
+                self.app.clone(),
+                new_brect(5., 25., 300., 315.),
+                "GLTeapot\0".as_ptr() as *const libc::c_char,
+            );
+        }
     }
 }
 
 fn main() {
-    let app = TeapotApp::new();
+    let app = HelloApp::new();
     app.run();
 }

@@ -164,7 +164,6 @@ ObjectView::AttachedToWindow()
     	    glGetShaderInfoLog(this->vertexShader, 512, NULL, infoLog);
     	    std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
     	}
-	GLint vertSrcLen;
 
         this->fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);;
 	glShaderSource(this->fragmentShader, 1, &fragmentShaderSource, NULL);

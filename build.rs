@@ -1,10 +1,11 @@
 fn main() {
-    cxx_build::bridge("src/main.rs")
+    cc::Build::new()
+        .cpp(true)
         .include("src")
         .file("src/shims.cpp")
         .file("src/ObjectView.cpp")
         .file("src/FPS.cpp")
-        .compile("hello-rs");
+        .compile("shims_lib");
 
     println!("cargo:rustc-link-lib=be");
     println!("cargo:rustc-link-lib=game");
