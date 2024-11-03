@@ -1,20 +1,4 @@
-/*
- * Copyright 2008 Haiku Inc. All rights reserved.
- * Distributed under the terms of the MIT License.
- *
- * Authors:
- *		Alexandre Deckner
- *
- */
-
-/*
- * Original Be Sample source modified to use a quaternion for the object's orientation
- */
-
-/*
-	Copyright 1999, Be Incorporated.   All Rights Reserved.
-	This file may be used under the terms of the Be Sample Code License.
-*/
+#include <iostream>
 
 #include "ObjectView.h"
 
@@ -26,35 +10,9 @@
 
 #include "FPS.h"
 
-#undef B_TRANSLATION_CONTEXT
-#define B_TRANSLATION_CONTEXT "ObjectView"
-
 float displayScale = 1.0;
 float depthOfView = 30.0;
 float zRatio = 10.0;
-
-const char *kNoResourceError = B_TRANSLATE("The Teapot 3D model was "
-									"not found in application resources. "
-									"Please repair the program installation.");
-
-struct light {
-	float *ambient;
-	float *diffuse;
-	float *specular;
-};
-
-
-long
-signalEvent(sem_id event)
-{
-	int32 c;
-	get_sem_count(event,&c);
-	if (c < 0)
-		release_sem_etc(event,-c,0);
-
-	return 0;
-}
-
 
 long
 setEvent(sem_id event)
@@ -133,6 +91,12 @@ ObjectView::ObjectView(BRect rect, const char *name, ulong resizingMode,
 	fLastYXRatio(1),
 	fYxRatio(1)
 {
+	printf("[OpenGL Renderer]          %s\n", glGetString(GL_RENDERER));
+	printf("[OpenGL Vendor]            %s\n", glGetString(GL_VENDOR));
+	printf("[OpenGL Version]           %s\n", glGetString(GL_VERSION));
+	GLint profile;	glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
+	printf("[OpenGL Profile]           %s\n", profile ? "Core" : "Compatibility");
+	printf("[OpenGL Shading Language]  %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	fTrackingInfo.isTracking = false;
 	fTrackingInfo.buttons = 0;
 	fTrackingInfo.lastX = 0.0f;
@@ -152,6 +116,20 @@ ObjectView::~ObjectView()
 	delete_sem(drawEvent);
 }
 
+const char* vertexShaderSource = "#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+"}\0";
+
+const char* fragmentShaderSource = "#version 330 core\n"
+"out vec4 FragColor; \n"
+"void main() \n"
+"{\n"
+"    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); \n"
+"}\n\0";
+
 
 void
 ObjectView::AttachedToWindow()
@@ -168,27 +146,74 @@ ObjectView::AttachedToWindow()
 	glCullFace(GL_BACK);
 	glDepthFunc(GL_LESS);
 
-	glShadeModel(GL_SMOOTH);
-
-	glFrontFace(GL_CW);
 	glEnable(GL_AUTO_NORMAL);
 	glEnable(GL_NORMALIZE);
 
-	glMaterialf(GL_FRONT, GL_SHININESS, 0.6 * 128.0);
-
-	glClearColor(0.0, 0.0, 0.0, 1.0);
-	glColor3f(1.0, 1.0, 1.0);
-
 	glViewport(0, 0, (GLint)bounds.IntegerWidth() + 1,
 				(GLint)bounds.IntegerHeight() + 1);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
+	this->shaderProgram = glCreateProgram();
+        this->vertexShader = glCreateShader(GL_VERTEX_SHADER);;
+	glShaderSource(this->vertexShader, 1, &vertexShaderSource, NULL);
+	glCompileShader(this->vertexShader);
+	int success;
+    	char infoLog[512];
+    	glGetShaderiv(this->vertexShader, GL_COMPILE_STATUS, &success);
 
-	float scale = displayScale;
-	glOrtho(-scale, scale, -scale, scale, -scale * depthOfView,
-			scale * depthOfView);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+    	if (!success)
+    	{
+    	    glGetShaderInfoLog(this->vertexShader, 512, NULL, infoLog);
+    	    std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+    	}
+	GLint vertSrcLen;
+
+        this->fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);;
+	glShaderSource(this->fragmentShader, 1, &fragmentShaderSource, NULL);
+	glCompileShader(this->fragmentShader);
+	glGetShaderiv(this->fragmentShader, GL_COMPILE_STATUS, &success);
+
+    	if (!success)
+    	{
+    	    glGetShaderInfoLog(this->fragmentShader, 512, NULL, infoLog);
+    	    std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+    	}
+
+        glAttachShader(this->shaderProgram, this->vertexShader);
+        glAttachShader(this->shaderProgram, this->fragmentShader);
+        glLinkProgram(this->shaderProgram);
+	glGetProgramiv(this->shaderProgram, GL_LINK_STATUS, &success);
+    	if (!success) {
+    	    glGetProgramInfoLog(this->shaderProgram, 512, NULL, infoLog);
+    	    std::cout << "ERROR::SHADER::Program::COMPILATION_FAILED\n" << infoLog << std::endl;
+    	}
+
+	// set up vertex data (and buffer(s)) and configure vertex attributes
+        // ------------------------------------------------------------------
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,  // left
+             0.5f, -0.5f, 0.0f,  // right
+             0.0f,  0.5f, 0.0f   // top
+        };
+
+        // ..:: Initialization code (done once (unless your object frequently changes)) :: ..
+        // 1. bind Vertex Array Object
+        glGenVertexArrays(1, &this->VAO);
+        glGenBuffers(1, &this->VBO);
+
+        // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+        glBindVertexArray(this->VAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, this->VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
+        // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+        glBindVertexArray(0);
 
 	UnlockGL();
 
@@ -322,78 +347,10 @@ ObjectView::FrameResized(float width, float height)
 	// To prevent weird buffer contents
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	float scale = displayScale;
-
-	if (fPersp) {
-		gluPerspective(60, 1.0 / fYxRatio, 0.15, 120);
-	} else {
-		if (fYxRatio < 1) {
-			glOrtho(-scale / fYxRatio, scale / fYxRatio, -scale, scale, -1.0,
-				depthOfView * 4);
-		} else {
-			glOrtho(-scale, scale, -scale * fYxRatio, scale * fYxRatio, -1.0,
-				depthOfView * 4);
-		}
-	}
-
-	fLastYXRatio = fYxRatio;
-
-	glMatrixMode(GL_MODELVIEW);
-
 	UnlockGL();
 
 	fForceRedraw = true;
 	setEvent(drawEvent);
-}
-
-
-bool
-ObjectView::RepositionView()
-{
-	if (!(fPersp != fLastPersp) &&
-		!(fLastObjectDistance != fObjectDistance) &&
-		!(fLastYXRatio != fYxRatio)) {
-		return false;
-	}
-
-	LockGL();
-
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	float scale = displayScale;
-
-	if (fPersp) {
-		gluPerspective(60, 1.0 / fYxRatio, 0.15, 120);
-	} else {
-		if (fYxRatio < 1) {
-			glOrtho(-scale / fYxRatio, scale / fYxRatio, -scale, scale, -1.0,
-				depthOfView * 4);
-		} else {
-			glOrtho(-scale, scale, -scale * fYxRatio, scale * fYxRatio, -1.0,
-				depthOfView * 4);
-		}
-	}
-
-	glMatrixMode(GL_MODELVIEW);
-
-	UnlockGL();
-
-	fLastObjectDistance = fObjectDistance;
-	fLastPersp = fPersp;
-	fLastYXRatio = fYxRatio;
-	return true;
-}
-
-
-void
-ObjectView::EnforceState()
-{
-	glShadeModel(GL_FLAT);
-	glEnable(GL_CULL_FACE);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
 }
 
 void
@@ -401,9 +358,8 @@ ObjectView::DrawFrame(bool noPause)
 {
 	LockGL();
 	glClear(GL_COLOR_BUFFER_BIT | (fZbuf ? GL_DEPTH_BUFFER_BIT : 0));
+	glClearColor(1.0, 0.0, 0.0, 1.0);
 	
-	EnforceState();
-
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 
@@ -421,6 +377,11 @@ ObjectView::DrawFrame(bool noPause)
 		}
 
 		fFpsHistory[entry] = fps;
+		
+		glClearColor(0.0, 1.0, 0.0, 1.0);
+		glUseProgram(this->shaderProgram);
+    		glBindVertexArray(this->VAO);
+    		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		if (fHistEntries > 5) {
 			fps = 0;
@@ -429,28 +390,16 @@ ObjectView::DrawFrame(bool noPause)
 
 			fps /= fHistEntries;
 
-			if (fFps) {
-				glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING_BIT);
+			if (true) {
+				glUseProgram(0);
+				glColor4f(1, 1, 1, 1);
 				glPushMatrix();
-				glLoadIdentity();
-				glTranslatef(-0.9, -0.9, 0);
-				glScalef(0.10, 0.10, 0.10);
-				glDisable(GL_LIGHTING);
-				glDisable(GL_DEPTH_TEST);
-				glDisable(GL_BLEND);
-				glColor3f(1.0, 1.0, 0);
-				glMatrixMode(GL_PROJECTION);
-				glPushMatrix();
-				glLoadIdentity();
-				glMatrixMode(GL_MODELVIEW);
-
+    				glMatrixMode(GL_MODELVIEW);
+    				glLoadIdentity();
+    				glTranslatef(-0.9f, -0.9f, 0.0f);
+    				glScalef(0.1f, 0.1f, 0.0f);
 				FPS::drawCounter(fps);
-
-				glMatrixMode(GL_PROJECTION);
 				glPopMatrix();
-				glMatrixMode(GL_MODELVIEW);
-				glPopMatrix();
-				glPopAttrib();
 			}
 		}
 	} else {

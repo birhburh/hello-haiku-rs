@@ -12,8 +12,10 @@
 #ifndef OBJECT_VIEW_H
 #define OBJECT_VIEW_H
 
+#define GL_GLEXT_PROTOTYPES 1
 #include <GL/glu.h>
 #include <GLView.h>
+#include <GL/glext.h>
 
 #define kMsgFPS			'fps '
 #define kMsgLimitFps	'lfps'
@@ -66,8 +68,6 @@ class ObjectView : public BGLView {
 		virtual	void	DrawFrame(bool noPause);
 		virtual	void	Pulse();
 				void	EnforceState();
-				bool	RepositionView();
-
 		sem_id			drawEvent;
 		sem_id			quittingSem;
 
@@ -83,6 +83,11 @@ class ObjectView : public BGLView {
 		float			fLastYXRatio, fYxRatio, fFpsHistory[HISTSIZE];
 		float			fObjectDistance, fLastObjectDistance;
 		TrackingInfo	fTrackingInfo;
+		unsigned int VAO;
+		unsigned int VBO;
+    		unsigned int vertexShader = 0;
+    		unsigned int fragmentShader = 0;
+    		unsigned int shaderProgram = 0;
 };
 
 #endif // OBJECT_VIEW_H
