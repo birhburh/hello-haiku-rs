@@ -50,6 +50,7 @@ struct TrackingInfo {
 
 class ObjectView : public BGLView {
 	public:
+		bool			fLimitFps;
 						ObjectView(BRect rect, const char* name,
 							ulong resizingMode, ulong options);
 						~ObjectView();
@@ -62,9 +63,6 @@ class ObjectView : public BGLView {
 		virtual	void	AttachedToWindow();
 		virtual	void	DetachedFromWindow();
 		virtual	void	FrameResized(float width, float height);
-				bool	SpinIt();
-				bool	LimitFps() { return fLimitFps; };
-				int		ObjectAtPoint(const BPoint &point);
 		virtual	void	DrawFrame(bool noPause);
 		virtual	void	Pulse();
 				void	EnforceState();
@@ -77,7 +75,7 @@ class ObjectView : public BGLView {
 		thread_id		fDrawThread;
 		uint64			fLastFrame;
 		int32			fHistEntries,fOldestEntry;
-		bool			fFps, fLimitFps, fLastGouraud, fGouraud;
+		bool			fFps, fLastGouraud, fGouraud;
 		bool			fLastZbuf, fZbuf, fLastCulling, fCulling;
 		bool			fLastLighting, fLighting, fLastFilled, fFilled;
 		bool			fLastPersp, fPersp, fLastTextured, fTextured;

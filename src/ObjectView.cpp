@@ -33,20 +33,6 @@ float displayScale = 1.0;
 float depthOfView = 30.0;
 float zRatio = 10.0;
 
-float white[3] = {1.0, 1.0, 1.0};
-float dimWhite[3] = {0.25, 0.25, 0.25};
-float black[3] = {0.0, 0.0, 0.0};
-float foggy[3] = {0.4, 0.4, 0.4};
-float blue[3] = {0.0, 0.0, 1.0};
-float dimBlue[3] = {0.0, 0.0, 0.5};
-float yellow[3] = {1.0, 1.0, 0.0};
-float dimYellow[3] = {0.5, 0.5, 0.0};
-float green[3] = {0.0, 1.0, 0.0};
-float dimGreen[3] = {0.0, 0.5, 0.0};
-float red[3] = {1.0, 0.0, 0.0};
-
-float* bgColor = black;
-
 const char *kNoResourceError = B_TRANSLATE("The Teapot 3D model was "
 									"not found in application resources. "
 									"Please repair the program installation.");
@@ -56,17 +42,6 @@ struct light {
 	float *diffuse;
 	float *specular;
 };
-
-
-light lights[] = {
-	{NULL, NULL, NULL},
-	{dimWhite, white, white},
-	{dimWhite, yellow, yellow},
-	{dimWhite, red, red},
-	{dimWhite, blue, blue},
-	{dimWhite, green, green}
-};
-
 
 
 long
@@ -115,7 +90,7 @@ simonThread(void* cookie)
 
 	int noPause = 0;
 	while (acquire_sem_etc(objectView->quittingSem, 1, B_TIMEOUT, 0) == B_NO_ERROR) {
-		if (objectView->SpinIt()) {
+		if (true) {
 			objectView->DrawFrame(noPause);
 			release_sem(objectView->quittingSem);
 			noPause = 1;
@@ -124,7 +99,7 @@ simonThread(void* cookie)
 			noPause = 0;
 			waitEvent(objectView->drawEvent);
 		}
-		if (objectView->LimitFps())
+		if (objectView->fLimitFps)
 			screen.WaitForRetrace();
 	}
 	return 0;
@@ -134,10 +109,10 @@ simonThread(void* cookie)
 ObjectView::ObjectView(BRect rect, const char *name, ulong resizingMode,
 	ulong options)
 	: BGLView(rect, name, resizingMode, 0, options),
+	fLimitFps(true),
 	fHistEntries(0),
 	fOldestEntry(0),
 	fFps(true),
-	fLimitFps(true),
 	fLastGouraud(true),
 	fGouraud(true),
 	fLastZbuf(true),
@@ -181,14 +156,6 @@ ObjectView::~ObjectView()
 void
 ObjectView::AttachedToWindow()
 {
-	float position[] = {0.0, 3.0, 3.0, 0.0};
-	float position1[] = {-3.0, -3.0, 3.0, 0.0};
-	float position2[] = {3.0, 0.0, 0.0, 0.0};
-	float local_view[] = {0.0, 0.0};
-//	float ambient[] = {0.1745, 0.03175, 0.03175};
-//	float diffuse[] = {0.61424, 0.10136, 0.10136};
-//	float specular[] = {0.727811, 0.626959, 0.626959};
-//	rgb_color black = {0, 0, 0, 255};
 	BRect bounds = Bounds();
 
 	BGLView::AttachedToWindow();
@@ -203,28 +170,13 @@ ObjectView::AttachedToWindow()
 
 	glShadeModel(GL_SMOOTH);
 
-	glLightfv(GL_LIGHT0, GL_POSITION, position);
-	glLightfv(GL_LIGHT0 + 1, GL_POSITION, position1);
-	glLightfv(GL_LIGHT0 + 2, GL_POSITION, position2);
-	glLightModelfv(GL_LIGHT_MODEL_LOCAL_VIEWER, local_view);
-
-	glEnable(GL_LIGHT0);
-	glLightfv(GL_LIGHT0, GL_SPECULAR, lights[lightWhite].specular);
-	glLightfv(GL_LIGHT0, GL_DIFFUSE,lights[lightWhite].diffuse);
-	glLightfv(GL_LIGHT0, GL_AMBIENT,lights[lightWhite].ambient);
-	glEnable(GL_LIGHT1);
-	glLightfv(GL_LIGHT1, GL_SPECULAR, lights[lightBlue].specular);
-	glLightfv(GL_LIGHT1, GL_DIFFUSE,lights[lightBlue].diffuse);
-	glLightfv(GL_LIGHT1, GL_AMBIENT,lights[lightBlue].ambient);
-
 	glFrontFace(GL_CW);
-	glEnable(GL_LIGHTING);
 	glEnable(GL_AUTO_NORMAL);
 	glEnable(GL_NORMALIZE);
 
 	glMaterialf(GL_FRONT, GL_SHININESS, 0.6 * 128.0);
 
-	glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glColor3f(1.0, 1.0, 1.0);
 
 	glViewport(0, 0, (GLint)bounds.IntegerWidth() + 1,
@@ -305,64 +257,6 @@ ObjectView::MessageReceived(BMessage* msg)
 			setEvent(drawEvent);
 			break;
 		}
-		case kMsgLights:
-		{
-			msg->FindPointer("source", reinterpret_cast<void**>(&item));
-			long lightNum = msg->FindInt32("num");
-			long color = msg->FindInt32("color");
-			BMenu *menu = item->Menu();
-			long index = menu->IndexOf(item);
-			menu->ItemAt(index)->SetMarked(true);
-			for (int i = 0; i < menu->CountItems(); i++) {
-				if (i != index)
-					menu->ItemAt(i)->SetMarked(false);
-			}
-
-			LockGL();
-			if (color != lightNone) {
-				glEnable(GL_LIGHT0 + lightNum - 1);
-				glLightfv(GL_LIGHT0 + lightNum - 1, GL_SPECULAR,
-					lights[color].specular);
-				glLightfv(GL_LIGHT0 + lightNum - 1, GL_DIFFUSE,
-					lights[color].diffuse);
-				glLightfv(GL_LIGHT0 + lightNum - 1, GL_AMBIENT,
-					lights[color].ambient);
-			} else {
-				glDisable(GL_LIGHT0 + lightNum - 1);
-			}
-			UnlockGL();
-			fForceRedraw = true;
-			setEvent(drawEvent);
-			break;
-		}
-		case kMsgGouraud:
-			fGouraud = !fGouraud;
-			toggleItem = true;
-			break;
-		case kMsgZBuffer:
-			fZbuf = !fZbuf;
-			toggleItem = true;
-			break;
-		case kMsgCulling:
-			fCulling = !fCulling;
-			toggleItem = true;
-			break;
-		case kMsgLighting:
-			fLighting = !fLighting;
-			toggleItem = true;
-			break;
-		case kMsgFilled:
-			fFilled = !fFilled;
-			toggleItem = true;
-			break;
-		case kMsgPerspective:
-			fPersp = !fPersp;
-			toggleItem = true;
-			break;
-		case kMsgFog:
-			fFog = !fFog;
-			toggleItem = true;
-			break;
 		case kMsgLimitFps:
 			fLimitFps = !fLimitFps;
 			toggleItem = true;
@@ -375,32 +269,6 @@ ObjectView::MessageReceived(BMessage* msg)
 	}
 
 	BGLView::MessageReceived(msg);
-}
-
-
-int
-ObjectView::ObjectAtPoint(const BPoint &point)
-{
-	LockGL();
-	glShadeModel(GL_FLAT);
-	glDisable(GL_LIGHTING);
-	glDisable(GL_FOG);
-	glClearColor(black[0], black[1], black[2], 1.0);
-	glClear(GL_COLOR_BUFFER_BIT | (fZbuf ? GL_DEPTH_BUFFER_BIT : 0));
-
-	float idColor[3];
-	idColor[1] = idColor[2] = 0;
-	glReadBuffer(GL_BACK);
-	uchar pixel[256];
-	glReadPixels((GLint)point.x, (GLint)(Bounds().bottom - point.y), 1, 1,
-		GL_RGB, GL_UNSIGNED_BYTE, pixel);
-	int objNum = pixel[0];
-	objNum = (255 - objNum) >> 3;
-
-	EnforceState();
-	UnlockGL();
-
-	return objNum;
 }
 
 
@@ -522,125 +390,10 @@ ObjectView::RepositionView()
 void
 ObjectView::EnforceState()
 {
-	glShadeModel(fGouraud ? GL_SMOOTH : GL_FLAT);
-
-	if (fZbuf)
-		glEnable(GL_DEPTH_TEST);
-	else
-		glDisable(GL_DEPTH_TEST);
-
-	if (fCulling)
-		glEnable(GL_CULL_FACE);
-	else
-		glDisable(GL_CULL_FACE);
-
-	if (fLighting)
-		glEnable(GL_LIGHTING);
-	else
-		glDisable(GL_LIGHTING);
-
-	if (fFilled)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	else
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	if (fFog) {
-		glFogf(GL_FOG_START, 10.0);
-		glFogf(GL_FOG_DENSITY, 0.2);
-		glFogf(GL_FOG_END, depthOfView);
-		glFogfv(GL_FOG_COLOR, foggy);
-		glEnable(GL_FOG);
-		bgColor = foggy;
-		glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
-	} else {
-		glDisable(GL_FOG);
-		bgColor = black;
-		glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
-	}
-}
-
-
-bool
-ObjectView::SpinIt()
-{
-	bool changed = false;
-
-	if (fGouraud != fLastGouraud) {
-		LockGL();
-		glShadeModel(fGouraud ? GL_SMOOTH : GL_FLAT);
-		UnlockGL();
-		fLastGouraud = fGouraud;
-		changed = true;
-	}
-
-	if (fZbuf != fLastZbuf) {
-		LockGL();
-		if (fZbuf)
-			glEnable(GL_DEPTH_TEST);
-		else
-			glDisable(GL_DEPTH_TEST);
-		UnlockGL();
-		fLastZbuf = fZbuf;
-		changed = true;
-	}
-
-	if (fCulling != fLastCulling) {
-		LockGL();
-		if (fCulling)
-			glEnable(GL_CULL_FACE);
-		else
-			glDisable(GL_CULL_FACE);
-		UnlockGL();
-		fLastCulling = fCulling;
-		changed = true;
-	}
-
-	if (fLighting != fLastLighting) {
-		LockGL();
-		if (fLighting)
-			glEnable(GL_LIGHTING);
-		else
-			glDisable(GL_LIGHTING);
-		UnlockGL();
-		fLastLighting = fLighting;
-		changed = true;
-	}
-
-	if (fFilled != fLastFilled) {
-		LockGL();
-		if (fFilled) {
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		} else {
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		}
-		UnlockGL();
-		fLastFilled = fFilled;
-		changed = true;
-	}
-
-	if (fFog != fLastFog) {
-		if (fFog) {
-			glFogf(GL_FOG_START, 1.0);
-			glFogf(GL_FOG_DENSITY, 0.2);
-			glFogf(GL_FOG_END, depthOfView);
-			glFogfv(GL_FOG_COLOR, foggy);
-			glEnable(GL_FOG);
-			bgColor = foggy;
-			glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
-		} else {
-			glDisable(GL_FOG);
-			bgColor = black;
-			glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
-		}
-		fLastFog = fFog;
-		changed = true;
-	}
-
-	changed = changed || RepositionView();
-	changed = changed || fForceRedraw;
-	fForceRedraw = false;
-
-	return true;
+	glShadeModel(GL_FLAT);
+	glEnable(GL_CULL_FACE);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 }
 
 void
